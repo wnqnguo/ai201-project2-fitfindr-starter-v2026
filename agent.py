@@ -17,7 +17,7 @@ import re
 
 import config
 import trace
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import search_listings, suggest_outfit, create_fit_card, compare_prices
 from generate import ModelUnavailable
 
 
@@ -44,6 +44,7 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "searched": False,           # True once search_listings has run
         "outfit_input_id": None,     # id of the item suggest_outfit received
         "selected_item": None,       # the one you chose — goes into suggest_outfit
+        "price_comparison": None,    # what compare_prices returned (stretch)
         "wardrobe": wardrobe,        # the user's wardrobe
         "outfit_suggestion": None,   # what suggest_outfit returned
         "fit_card": None,            # what create_fit_card returned
@@ -192,6 +193,19 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         # Step 3: choose the first result.
         if session["selected_item"] is None:
             session["selected_item"] = session["search_results"][0]
+            continue
+
+        # Step 3b (stretch): compare the chosen item's price with the other results.
+        if session["price_comparison"] is None:
+            session["price_comparison"] = compare_prices(
+                session["selected_item"], session["search_results"]
+            )
+            cmp_ = session["price_comparison"]
+            print(
+                f"[price] ${cmp_['price']:.0f} vs average "
+                f"{'n/a' if cmp_['average'] is None else '$%.2f' % cmp_['average']}"
+                f" of the other results: {cmp_['verdict']}"
+            )
             continue
 
         # Step 4: outfit, using the item read back out of the session.

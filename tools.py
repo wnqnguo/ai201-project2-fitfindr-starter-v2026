@@ -284,3 +284,40 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
             caption = retry
 
     return caption or "Found something great, outfit details to come."
+
+
+# ── Tool 4 (stretch): compare_prices ──────────────────────────────────────────
+
+def compare_prices(item: dict, results: list[dict]) -> dict:
+    """
+    Compare the selected item's price with the other search results.
+
+    Args:
+        item:    the selected listing dict.
+        results: the list of listing dicts search_listings returned.
+
+    Returns:
+        A dict with:
+            price    (float)        the item's price
+            average  (float|None)   average price of the OTHER results
+            verdict  (str)          "below average", "about average" or
+                                    "above average". About average means within
+                                    10% of the average.
+        When there are no other results to compare with, average is None and
+        the verdict is "no comparison available". It never raises.
+    """
+    price = item["price"]
+    others = [r["price"] for r in results if r.get("id") != item.get("id")]
+
+    if not others:
+        return {"price": price, "average": None, "verdict": "no comparison available"}
+
+    average = sum(others) / len(others)
+    if price < average * 0.9:
+        verdict = "below average"
+    elif price > average * 1.1:
+        verdict = "above average"
+    else:
+        verdict = "about average"
+    return {"price": price, "average": round(average, 2), "verdict": verdict}
+

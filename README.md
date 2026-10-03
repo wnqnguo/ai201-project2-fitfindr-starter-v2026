@@ -79,6 +79,13 @@
 - **Returns:** A string of two to four sentences that mentions the item, its price and its platform once each.
 - **When it has nothing:** When `outfit` is empty or only whitespace, it returns a message string saying there is no outfit to write a caption for. It does not raise and does not call the model.
 
+### `compare_prices` (stretch)
+
+- **What it does:** Compares the selected item's price with the other search results.
+- **Inputs:** `item` (dict, the selected listing dict), `results` (list of listing dicts from `search_listings`).
+- **Returns:** A dict with `price` (float, the item's price), `average` (float, the average price of the other results), and `verdict` (str: `"below average"`, `"about average"` or `"above average"`). About average means within 10% of the average.
+- **When it has nothing:** When there are no other results to compare with, it returns `average` as `None` and `verdict` as `"no comparison available"`. It never raises.
+
 ---
 
 ## Planning Loop
@@ -107,6 +114,7 @@ Each step reads its input from the session and writes its result back, in this o
 1. `parsed`: the description, size and max_price from `parse_query`.
 2. `search_results` (and `searched` = True): the list from `search_listings`.
 3. `selected_item`: the first search result.
+3b. `price_comparison` (stretch): the dict from `compare_prices`, printed as a `[price]` line.
 4. `outfit_input_id`: the `id` of the item `suggest_outfit` received, printed as a `[state]` line when the call is made. Then `outfit_suggestion`: the text `suggest_outfit` returned.
 5. `fit_card`: the caption from `create_fit_card`, built from `outfit_suggestion` and `selected_item`.
 
@@ -146,6 +154,7 @@ I am adding all three stretch features. This section was written before any of t
 
 ```
 $ python app.py ask 'vintage graphic tee under $30'
+[price] $18 vs average $18.22 of the other results: about average
 [state] session selected_item id=lst_002  |  suggest_outfit received id=lst_002
 
   Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
@@ -155,7 +164,6 @@ $ python app.py ask 'vintage graphic tee under $30'
   Fit card: Found this insanely cute butterfly print Y2K baby tee on Depop for just $18 and I am obsessed. The vibe is very 2000s pop star off-duty, especially paired with baggy denim and chunky sneakers. Going to live in this all summer.
 
 0 model calls this session, 2 served from cache
-
 ```
 
 **The three tools, tested one at a time**
@@ -197,6 +205,33 @@ $ python app.py ask 'size M under $30'
 ```
 
 What it changed: before this branch, a query with only a size and a price would have gone to `search_listings` with nothing to search for. Now the run stops before the search, no tool is called, and the message tells the user what to add. This is a different stopping point from the empty-search branch, which stops after the search.
+
+**Fourth tool: `compare_prices`**
+
+The loop calls it after the item is chosen and before the outfit is requested (`agent.py::run_agent`, step 3b), and saves its result in `session["price_comparison"]`. The `[price]` line in the first row of the output shows that the agent called it.
+
+```
+$ python app.py ask 'vintage graphic tee under $30'
+[price] $18 vs average $18.22 of the other results: about average
+[state] session selected_item id=lst_002  |  suggest_outfit received id=lst_002
+
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Hey there! What an amazing find, you are going to rock that baby tee! For a super cute throwback look, pair the Y2K Baby Tee — Butterfly Print with your baggy straight-leg jeans, dark wash, throw on the vintage black denim jacket, and finish it off with your chunky white sneakers. If you want something a bit more earthy, try wearing the baby tee with your wide-leg khaki trousers, the brown leather belt, and the black combat boots for a fun contrast. Have so much fun styling your new piece!
+
+  Fit card: Found this insanely cute butterfly print Y2K baby tee on Depop for just $18 and I am obsessed. The vibe is very 2000s pop star off-duty, especially paired with baggy denim and chunky sneakers. Going to live in this all summer.
+
+0 model calls this session, 2 served from cache
+```
+
+Terminal test of the tool on its own:
+
+```
+$ python -c "from tools import search_listings, compare_prices; r = search_listings('graphic tee', max_price=30); print(compare_prices(r[0], r))"
+{'price': 18.0, 'average': 22.2, 'verdict': 'below average'}
+```
+
+What it changed: the run now tells the user whether the item is a good price compared with the other matches ($18 against an average of $18.22 for the rest, so about average). It also uses the same price data that criterion 5 checks.
 
 ---
 
