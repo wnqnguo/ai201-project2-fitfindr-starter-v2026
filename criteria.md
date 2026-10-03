@@ -29,6 +29,8 @@ tool calls and returns a fit card — in at least 4 of 5 tries.
      "my search is a plain keyword match and some phrasings will miss" is a
      real answer. -->
 
+I picked 4 of 5 because the search is a plain keyword match, so a phrasing can miss a listing that is really there, and two of the three tools call a model whose answers vary. One miss in five does not mean the agent is broken.
+
 ---
 
 ## 2. An impossible query stops before the second tool
@@ -39,6 +41,8 @@ Given a query that matches no listings, the agent stops before calling
 **Why this target:**
 <!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
      about this path? -->
+
+I picked 5 of 5 because this path stops right after the search, before either model-calling tool runs. The check is just whether the list is empty, which is plain code, so if it fails once it is a bug and not bad luck.
 
 ---
 
@@ -54,11 +58,11 @@ Given a query that matches no listings, the agent stops before calling
      compares session["selected_item"] against what actually reached
      suggest_outfit is the shape you're after. -->
 
-
+Given a query that matches at least one listing, the `id` of `session["selected_item"]` matches the `id` of the item that `suggest_outfit` received, as printed by the agent at the moment it calls `suggest_outfit`, in 5 out of 5 tries.
 
 **Why this target:**
 
-
+I picked 5 of 5 because it should be 100% passing, since this is a logical state check of a working agent between `search_listings` and the `suggest_outfit` hand-off.
 
 ---
 
@@ -75,11 +79,11 @@ Given a query that matches no listings, the agent stops before calling
      sentence? A card longer than a caption anyone would post? Any of those can
      be turned into a number. -->
 
-
+Given a different item each try (10 tries), the fit card mentions both the price and the platform, in 9 out of 10 tries.
 
 **Why this target:**
 
-
+I picked 9 of 10 because the model's answers aren't deterministic, so one miss doesn't mean the agent is broken, but a card missing the price or the platform makes the information useless.
 
 ---
 
@@ -92,11 +96,11 @@ Given a query that matches no listings, the agent stops before calling
      search respects a price ceiling — anything, as long as it names a number
      or an observable outcome. -->
 
-
+Given a query that includes a price ceiling, the `price` of every listing in `session["search_results"]` is not above that ceiling, in 5 of 5 tries.
 
 **Why this target:**
 
-
+It's a pure logic filter in the agent, so it should be 100% right. If one try fails, there's a bug in the code. It also supports the price comparison for the stretch goal.
 
 ---
 
