@@ -13,6 +13,8 @@ Build and test your three tools in `tools.py` first. Then come here.
     python agent.py          runs both example paths below
 """
 
+import json
+import os
 import re
 
 import config
@@ -46,6 +48,7 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "selected_item": None,       # the one you chose — goes into suggest_outfit
         "price_comparison": None,    # what compare_prices returned (stretch)
         "wardrobe": wardrobe,        # the user's wardrobe
+        "wardrobe_source": "given",  # "given", or "saved" when loaded from memory (stretch)
         "outfit_suggestion": None,   # what suggest_outfit returned
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
@@ -94,6 +97,31 @@ def parse_query(query: str) -> dict:
 
     description = re.sub(r"\s+", " ", text).strip(" ,.-")
     return {"description": description, "size": size, "max_price": max_price}
+
+
+# ── style memory (stretch) ────────────────────────────────────────────────────
+
+_SAVED_WARDROBE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "data", "saved_wardrobe.json")
+
+
+def _has_items(wardrobe) -> bool:
+    return bool((wardrobe or {}).get("items"))
+
+
+def _load_saved_wardrobe(path: str = _SAVED_WARDROBE):
+    """The wardrobe saved by an earlier run, or None if there isn't one."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            saved = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return saved if _has_items(saved) else None
+
+
+def _save_wardrobe(wardrobe: dict, path: str = _SAVED_WARDROBE) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(wardrobe, f, indent=2, ensure_ascii=False)
 
 
 # ── planning loop ─────────────────────────────────────────────────────────────
@@ -156,6 +184,14 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     """
     session = new_session(query, wardrobe)
     count = 0
+
+    # STYLE MEMORY (stretch): no wardrobe given, so use the one saved last time.
+    if not _has_items(session["wardrobe"]):
+        saved = _load_saved_wardrobe()
+        if saved:
+            session["wardrobe"] = saved
+            session["wardrobe_source"] = "saved"
+            print(f"[memory] no wardrobe given, loaded {len(saved['items'])} saved items")
 
     # Each time round the loop looks at the session and picks the next step
     # from what is already there (or not there yet).
@@ -226,7 +262,10 @@ def run_agent(query: str, wardrobe: dict) -> dict:
             )
             continue
 
-        # Step 6: everything is filled in.
+        # Step 6: everything is filled in. Remember the wardrobe for next time.
+        if session["wardrobe_source"] == "given" and _has_items(session["wardrobe"]):
+            _save_wardrobe(session["wardrobe"])
+            print(f"[memory] saved {len(session['wardrobe']['items'])} wardrobe items")
         return session
 
 

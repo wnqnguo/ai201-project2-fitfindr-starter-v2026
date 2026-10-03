@@ -233,6 +233,47 @@ $ python -c "from tools import search_listings, compare_prices; r = search_listi
 
 What it changed: the run now tells the user whether the item is a good price compared with the other matches ($18 against an average of $18.22 for the rest, so about average). It also uses the same price data that criterion 5 checks.
 
+**Style memory**
+
+After a completed run that was given a wardrobe, `agent.py::run_agent` saves it to `data/saved_wardrobe.json`. When a later run is given an empty wardrobe, the agent loads the saved one instead. Run 1 uses the example wardrobe. Run 2 is started with `--empty-wardrobe`, so the only way it can know the wardrobe is from what run 1 stored.
+
+Run 1:
+
+```
+$ python app.py ask 'vintage graphic tee under $30'
+[price] $18 vs average $18.22 of the other results: about average
+[state] session selected_item id=lst_002  |  suggest_outfit received id=lst_002
+[memory] saved 10 wardrobe items
+
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Hey there! What an amazing find, you are going to rock that baby tee! For a super cute throwback look, pair the Y2K Baby Tee — Butterfly Print with your baggy straight-leg jeans, dark wash, throw on the vintage black denim jacket, and finish it off with your chunky white sneakers. If you want something a bit more earthy, try wearing the baby tee with your wide-leg khaki trousers, the brown leather belt, and the black combat boots for a fun contrast. Have so much fun styling your new piece!
+
+  Fit card: Found this insanely cute butterfly print Y2K baby tee on Depop for just $18 and I am obsessed. The vibe is very 2000s pop star off-duty, especially paired with baggy denim and chunky sneakers. Going to live in this all summer.
+
+0 model calls this session, 2 served from cache
+```
+
+Run 2:
+
+```
+$ python app.py ask --empty-wardrobe 'vintage graphic tee under $30'
+(running with an empty wardrobe)
+[memory] no wardrobe given, loaded 10 saved items
+[price] $18 vs average $18.22 of the other results: about average
+[state] session selected_item id=lst_002  |  suggest_outfit received id=lst_002
+
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Hey there! What an amazing find, you are going to rock that baby tee! For a super cute throwback look, pair the Y2K Baby Tee — Butterfly Print with your baggy straight-leg jeans, dark wash, throw on the vintage black denim jacket, and finish it off with your chunky white sneakers. If you want something a bit more earthy, try wearing the baby tee with your wide-leg khaki trousers, the brown leather belt, and the black combat boots for a fun contrast. Have so much fun styling your new piece!
+
+  Fit card: Found this insanely cute butterfly print Y2K baby tee on Depop for just $18 and I am obsessed. The vibe is very 2000s pop star off-duty, especially paired with baggy denim and chunky sneakers. Going to live in this all summer.
+
+0 model calls this session, 2 served from cache
+```
+
+What it changed: run 2 was given an empty wardrobe, which on its own would produce general styling advice with no named pieces. Instead its outfit names the dark-wash jeans, the vintage black denim jacket, the chunky white sneakers and the other pieces from run 1's wardrobe. The outfit text is word for word the same as run 1 because the starter's cache returned the earlier answer: the prompt run 2 sent was identical to run 1's, which also shows the saved wardrobe reached `suggest_outfit`.
+
 ---
 
 ## How I Used AI
