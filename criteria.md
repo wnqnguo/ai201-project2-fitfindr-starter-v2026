@@ -79,7 +79,7 @@ I picked 5 of 5 because it should be 100% passing, since this is a logical state
      sentence? A card longer than a caption anyone would post? Any of those can
      be turned into a number. -->
 
-Given a different item each try (10 tries), the fit card mentions both the price (a `$` followed by a number) and the platform (its name as written in the listing), in 9 out of 10 tries.
+Given a different item each try (10 tries), the fit card mentions both the price (a `$` followed by a number) and the platform (its name as written in the listing, ignoring capitalization), in 9 out of 10 tries.
 
 **Why this target:**
 

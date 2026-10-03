@@ -41,7 +41,7 @@
 
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
 
-
+FitFindr is a thrifting agent. You tell it what you want in plain language, like "vintage graphic tee under $30" or "black boots size 9", and it searches a file of 40 secondhand listings, filtering by price and size and ranking by keyword. It picks the best match, checks whether its price is above or below the other matches, suggests one or two outfits that combine it with the pieces in your wardrobe, and writes a short caption you could post. If nothing matches, or the query has nothing to search for, it stops early and tells you what to change. It also remembers your wardrobe between runs.
 
 ---
 
@@ -76,7 +76,7 @@
 
 - **What it does:** Writes a short caption someone would actually post about the find.
 - **Inputs:** `outfit` (str, the output of suggest_outfit), `new_item` (dict, a listing dict as above).
-- **Returns:** A string of two to four sentences that mentions the item, its price and its platform once each.
+- **Returns:** A string of two to four sentences that mentions the item, its price and its platform once each. If the first caption has no `$` price or does not name the platform, the tool asks the model once more with a reminder, and returns that second caption.
 - **When it has nothing:** When `outfit` is empty or only whitespace, it returns a message string saying there is no outfit to write a caption for. It does not raise and does not call the model.
 
 ### `compare_prices` (stretch)
@@ -287,15 +287,15 @@ What it changed: run 2 was given an empty wardrobe, which on its own would produ
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I ran `search_listings('graphic tee', max_price=30)` and asked Claude why a Mesh Long-Sleeve Top was the first result, ahead of the actual graphic tees.
+- *What came back:* Claude explained that my scoring joined the title, description, tags and other fields into one string, so a keyword in the description counted the same as one in the title. The mesh top's description says "great for layering under a graphic tee", so it tied with the real tees, and the tie-breaker (cheaper first) put it on top. Since the loop always uses the first result, the agent would have styled a mesh top.
+- *What I changed:* I made words in the title and style tags worth 2 points and words anywhere else worth 1. After that the mesh top dropped to 4th and the top three results were all tees.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I had written size helper functions in `tools.py` in Milestone 1, and asked Claude to check them against the grading before building `search_listings`.
+- *What came back:* Claude found that `p.strip().upper` was missing its parentheses, so each size was a method object and not a string. Nothing would crash, but the size filter would never have matched anything.
+- *What I changed:* I let Claude add the `()`. Then we ran the helper on every size in the data and confirmed, for example, that `M` matches `S/M` and `M/L` but not `XL`.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
