@@ -182,6 +182,22 @@ $ python -c "from tools import create_fit_card; from utils.data_loader import lo
 These vintage Levi's 501 jeans in the absolute best medium wash just dropped in my depop shop. Snagged them for $38 and they fit like a total dream. Just add your favorite beat-up white sneakers for the easiest 90s off-duty look.
 ```
 
+### Stretch runs
+
+**Second branch: empty description**
+
+Condition: the description parsed from the query is empty. In `agent.py::run_agent`, the loop checks this right after `parse_query` and before `search_listings`.
+
+```
+$ python app.py ask 'size M under $30'
+
+  I couldn't tell what you want to find. Describe the item (for example: 'vintage graphic tee, size M, under $30').
+
+0 model calls this session
+```
+
+What it changed: before this branch, a query with only a size and a price would have gone to `search_listings` with nothing to search for. Now the run stops before the search, no tool is called, and the message tells the user what to add. This is a different stopping point from the empty-search branch, which stops after the search.
+
 ---
 
 ## How I Used AI
