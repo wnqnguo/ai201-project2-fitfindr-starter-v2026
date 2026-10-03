@@ -102,6 +102,27 @@
 
 **What moves through the session:** <!-- which fields, in what order -->
 
+### Stretch features (declared before building)
+
+I am adding all three stretch features. This section was written before any of the code for them.
+
+1. **Second branch.**
+   - Condition: the description parsed from the query is empty (for example `'size M under $30'`).
+   - Path A (description empty): stop before `search_listings` and put a message in `session["error"]` asking what to search for.
+   - Path B (description present): continue to `search_listings` as normal.
+   - Where it lives: `agent.py::run_agent`.
+
+2. **Fourth tool: `compare_prices(item, results)`.**
+   - Inputs: `item` (dict, the selected listing), `results` (list of listing dicts from the search).
+   - Returns: a dict with the item's price, the average price of the other results, and a verdict of `"below average"`, `"about average"` or `"above average"`.
+   - When there is nothing to compare (only one result): a dict with the verdict `"no comparison available"`, not an error.
+   - Called by the loop after the search, and the result goes in the session.
+
+3. **Style memory.**
+   - After a run, the wardrobe is saved to `data/saved_wardrobe.json`.
+   - If a later run is given an empty wardrobe, the saved one is loaded and used instead.
+   - Evidence: two runs, the first given the example wardrobe and the second given an empty one, where the second outfit names pieces from the first wardrobe.
+
 ---
 
 ## Sample Run
