@@ -13,6 +13,8 @@ Build and test your three tools in `tools.py` first. Then come here.
     python agent.py          runs both example paths below
 """
 
+import re
+
 import config
 import trace
 from tools import search_listings, suggest_outfit, create_fit_card
@@ -39,12 +41,58 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "query": query,              # what the user typed
         "parsed": {},                # description / size / max_price you pulled out of it
         "search_results": [],        # everything search_listings returned
+        "searched": False,           # True once search_listings has run
+        "outfit_input_id": None,     # id of the item suggest_outfit received
         "selected_item": None,       # the one you chose — goes into suggest_outfit
         "wardrobe": wardrobe,        # the user's wardrobe
         "outfit_suggestion": None,   # what suggest_outfit returned
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
     }
+
+
+# ── query parsing ─────────────────────────────────────────────────────────────
+
+_PRICE_PATTERNS = [
+    # "under $30", "below 30", "less than $30", "max $30", "up to 30"
+    r"(?:under|below|less than|max|up to|at most)\s*\$?\s*(\d+(?:\.\d+)?)",
+    # a bare "$30"
+    r"\$\s*(\d+(?:\.\d+)?)",
+]
+_SIZE_PATTERN = (
+    r"\bsize\s+(us\s*\d+(?:\.\d+)?|w\d+|xxs|xs|xxl|xl|s|m|l|\d+(?:\.\d+)?)\b"
+)
+
+
+def parse_query(query: str) -> dict:
+    """
+    Pull a description, a size and a max_price out of a plain-language query,
+    using regular expressions (no model call).
+
+    The price and size phrases are cut out of the description, so the search
+    only sees the item words (otherwise "30" would be searched for as a keyword).
+    size and max_price are None when the query does not give them.
+    """
+    text = query or ""
+    max_price = None
+    size = None
+
+    for pattern in _PRICE_PATTERNS:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            max_price = float(m.group(1))
+            text = text[:m.start()] + " " + text[m.end():]
+            break
+
+    m = re.search(_SIZE_PATTERN, text, re.IGNORECASE)
+    if m:
+        size = m.group(1).strip().upper()
+        if re.fullmatch(r"\d+(?:\.\d+)?", size):   # bare number -> shoe size
+            size = "US " + size
+        text = text[:m.start()] + " " + text[m.end():]
+
+    description = re.sub(r"\s+", " ", text).strip(" ,.-")
+    return {"description": description, "size": size, "max_price": max_price}
 
 
 # ── planning loop ─────────────────────────────────────────────────────────────
@@ -106,10 +154,82 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         than a stack trace. The import is already at the top of this file.
     """
     session = new_session(query, wardrobe)
+    count = 0
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
-    return session
+    # Each time round the loop looks at the session and picks the next step
+    # from what is already there (or not there yet).
+    while True:
+        count += 1
+        trace.check_iterations(count)
+
+        # Step 1: parse the query.
+        if not session["parsed"]:
+            session["parsed"] = parse_query(query)
+
+            # SECOND BRANCH (stretch): nothing to search for.
+            if not session["parsed"]["description"]:
+                session["error"] = (
+                    "I couldn't tell what you want to find. Describe the item "
+                    "(for example: 'vintage graphic tee, size M, under $30')."
+                )
+                return session
+            continue
+
+        # Step 2: search.
+        if not session["searched"]:
+            parsed = session["parsed"]
+            session["search_results"] = search_listings(
+                parsed["description"], parsed["size"], parsed["max_price"]
+            )
+            session["searched"] = True
+
+            # THE BRANCH: nothing came back, so stop. Do not call the next tool.
+            if not session["search_results"]:
+                session["error"] = _no_results_message(parsed)
+                return session
+            continue
+
+        # Step 3: choose the first result.
+        if session["selected_item"] is None:
+            session["selected_item"] = session["search_results"][0]
+            continue
+
+        # Step 4: outfit, using the item read back out of the session.
+        if session["outfit_suggestion"] is None:
+            item = session["selected_item"]
+            session["outfit_input_id"] = item.get("id")
+            print(
+                f"[state] session selected_item id={item.get('id')}  |  "
+                f"suggest_outfit received id={session['outfit_input_id']}"
+            )
+            session["outfit_suggestion"] = suggest_outfit(item, session["wardrobe"])
+            continue
+
+        # Step 5: fit card, using the outfit and item read back from the session.
+        if session["fit_card"] is None:
+            session["fit_card"] = create_fit_card(
+                session["outfit_suggestion"], session["selected_item"]
+            )
+            continue
+
+        # Step 6: everything is filled in.
+        return session
+
+
+def _no_results_message(parsed: dict) -> str:
+    """Tell the user what they could change, using what they actually asked."""
+    asked = f"'{parsed['description']}'"
+    if parsed["size"]:
+        asked += f", size {parsed['size']}"
+    if parsed["max_price"] is not None:
+        asked += f", under ${parsed['max_price']:.0f}"
+
+    ideas = ["use fewer or different keywords (for example 'tee' instead of 'graphic tee')"]
+    if parsed["size"]:
+        ideas.append("try a different size or leave the size out")
+    if parsed["max_price"] is not None:
+        ideas.append("raise the price limit")
+    return f"No listings matched {asked}. You could " + ", or ".join(ideas) + "."
 
 
 # ── running it directly ───────────────────────────────────────────────────────

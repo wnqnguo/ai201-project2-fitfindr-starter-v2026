@@ -99,8 +99,18 @@
 **Where it lives:** `agent.py::run_agent`
 
 **How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+I chose regular expressions, so the parser makes no model call. `agent.py::parse_query` looks for a price phrase ("under $30", "max 20", or a bare "$30") and a size phrase ("size M", "size XXS", "size US 9") and removes both from the text. A bare number after "size" becomes a shoe size, so "size 9" becomes "US 9". What is left is the description. `size` and `max_price` are `None` when the query does not give them.
 
 **What moves through the session:** <!-- which fields, in what order -->
+Each step reads its input from the session and writes its result back, in this order:
+
+1. `parsed`: the description, size and max_price from `parse_query`.
+2. `search_results` (and `searched` = True): the list from `search_listings`.
+3. `selected_item`: the first search result.
+4. `outfit_input_id`: the `id` of the item `suggest_outfit` received, printed as a `[state]` line when the call is made. Then `outfit_suggestion`: the text `suggest_outfit` returned.
+5. `fit_card`: the caption from `create_fit_card`, built from `outfit_suggestion` and `selected_item`.
+
+If the run stops early, `error` holds the message and the later fields stay `None`.
 
 ### Stretch features (declared before building)
 
@@ -135,7 +145,16 @@ I am adding all three stretch features. This section was written before any of t
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30'
+[state] session selected_item id=lst_002  |  suggest_outfit received id=lst_002
+
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Hey there! What an amazing find, you are going to rock that baby tee! For a super cute throwback look, pair the Y2K Baby Tee — Butterfly Print with your baggy straight-leg jeans, dark wash, throw on the vintage black denim jacket, and finish it off with your chunky white sneakers. If you want something a bit more earthy, try wearing the baby tee with your wide-leg khaki trousers, the brown leather belt, and the black combat boots for a fun contrast. Have so much fun styling your new piece!
+
+  Fit card: Found this insanely cute butterfly print Y2K baby tee on Depop for just $18 and I am obsessed. The vibe is very 2000s pop star off-duty, especially paired with baggy denim and chunky sneakers. Going to live in this all summer.
+
+0 model calls this session, 2 served from cache
 
 ```
 
