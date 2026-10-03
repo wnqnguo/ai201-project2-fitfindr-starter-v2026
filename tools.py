@@ -103,8 +103,40 @@ def search_listings(
     Test it from a terminal before you move on:
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
-    # TODO: replace this with your implementation
-    return []
+    wanted = _keywords(description)
+    results = []
+
+    for listing in load_listings():
+        # 1. price ceiling (inclusive)
+        if max_price is not None and listing["price"] > max_price:
+            continue
+
+        # 2. size
+        if size and not _size_matches(size, listing.get("size", "")):
+            continue
+
+        # 3. score by keyword overlap. A word in the title or style tags is
+        #    worth 2 points, a word anywhere else is worth 1. Each search word
+        #    counts once, at the best place it appears.
+        strong = _keywords(" ".join([
+            listing.get("title") or "",
+            " ".join(listing.get("style_tags") or []),
+        ]))
+        weak = _keywords(" ".join([
+            listing.get("description") or "",
+            listing.get("category") or "",
+            " ".join(listing.get("colors") or []),
+            listing.get("brand") or "",      # brand is None for most listings
+        ]))
+        score = 2 * len(wanted & strong) + len((wanted & weak) - strong)
+
+        # 4. drop anything that scored zero
+        if score > 0:
+            results.append((score, listing))
+
+    # 5. best score first, cheaper first on a tie
+    results.sort(key=lambda pair: (-pair[0], pair[1]["price"]))
+    return [listing for _, listing in results[: config.SEARCH_RESULT_LIMIT]]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -137,8 +169,46 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    item_text = (
+        f"Title: {new_item.get('title')}\n"
+        f"Category: {new_item.get('category')}\n"
+        f"Colors: {', '.join(new_item.get('colors') or [])}\n"
+        f"Style tags: {', '.join(new_item.get('style_tags') or [])}\n"
+        f"Description: {new_item.get('description')}"
+    )
+
+    owned = (wardrobe or {}).get("items") or []
+
+    if not owned:
+        # Empty wardrobe: general advice instead of failing.
+        prompt = (
+            "I just found this secondhand piece:\n"
+            f"{item_text}\n\n"
+            "I haven't told you what else I own. Give one or two outfit ideas "
+            "built around this piece, using common basics anyone might have "
+            "(for example jeans, white sneakers, a plain tee). Keep it short."
+        )
+    else:
+        wardrobe_text = "\n".join(
+            f"- {w.get('name')} ({w.get('category')}; "
+            f"{', '.join(w.get('colors') or [])})"
+            for w in owned
+        )
+        prompt = (
+            "I just found this secondhand piece:\n"
+            f"{item_text}\n\n"
+            "Here is my wardrobe:\n"
+            f"{wardrobe_text}\n\n"
+            "Give one or two outfit ideas that combine the new piece with "
+            "pieces from my wardrobe. Name the wardrobe pieces exactly as "
+            "listed, and do not suggest anything I don't own. Keep it short."
+        )
+
+    system = "You are a friendly thrift stylist. Answer in plain text, no headings."
+    text = (generate(prompt, system=system) or "").strip()
+
+    # The spec promises a non-empty string.
+    return text or "Try pairing it with simple basics, like jeans and clean sneakers."
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -177,5 +247,40 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    if not outfit or not outfit.strip():
+        return "No outfit to write a caption for yet. Get an outfit suggestion first."
+
+    price = new_item.get("price")
+    price_text = f"${price:.0f}" if price == int(price) else f"${price:.2f}"
+    platform = new_item.get("platform") or ""
+
+    prompt = (
+        "Write a short caption for a social post about a thrift find.\n\n"
+        f"Item: {new_item.get('title')}\n"
+        f"Price: {price_text}\n"
+        f"Platform: {platform}\n"
+        f"Outfit idea: {outfit}\n\n"
+        "Rules: two to four sentences. Sound like a real person posting, not a "
+        "product description. Mention the item, the price and the platform "
+        "once each, and be specific about the vibe."
+    )
+    system = "You write casual, specific social captions. Plain text only."
+
+    def _has_price_and_platform(text: str) -> bool:
+        return bool(re.search(r"\$\s?\d", text)) and platform.lower() in text.lower()
+
+    caption = (generate(prompt, system=system) or "").strip()
+
+    # One retry if the caption left out the price or the platform. The reminder
+    # changes the prompt, so the starter's cache does not hand back the same text.
+    if not _has_price_and_platform(caption):
+        retry_prompt = (
+            prompt
+            + f"\n\nImportant: your caption MUST include the price {price_text} "
+            f"and the platform name {platform}."
+        )
+        retry = (generate(retry_prompt, system=system) or "").strip()
+        if retry:
+            caption = retry
+
+    return caption or "Found something great, outfit details to come."
